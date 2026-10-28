@@ -1,64 +1,78 @@
 # Broken Brute-Force Protection, IP Block
 
+This repository documents the step-by-step walkthrough for solving PortSwigger Web Security Academy's lab on broken brute-force protection with IP blocking.
+
 ## Overview
-This repository documents the step-by-step walkthrough for solving PortSwigger Web Security Academy's lab on **Broken brute-force protection, IP block**.
 
-The vulnerability arises because the rate-limiting mechanism resets the counter for consecutive failed login attempts whenever a valid login occurs before reaching the blocking threshold. By alternating brute-force guesses against the victim's account (`carlos`) with valid logins to our own account (`wiener`), we can bypass the IP-based blocking mechanism and determine the victim's password.
+The vulnerability occurs because the failed-login counter is reset after a valid login succeeds before the rate-limit threshold is reached. This allows an attacker to alternate between a valid account and the target account in order to evade the IP block and brute-force the password.
 
----
-
-## Step-by-Step Solution
-
-### Step 1: Initial Reconnaissance & Intercepting Requests
-Attempting multiple incorrect logins triggers a temporary IP block. However, logging into a valid account resets the failed attempt counter.
-
-1. Submit an initial login attempt in the web browser.
-2. In **Burp Suite Proxy -> HTTP history**, locate the `POST /login` request.
-
-![Initial POST /login Request in Burp Proxy](Screenshot_2026-09-21_21-21-48.png)
+The goal is to use Burp Suite Intruder to send login attempts in a pattern that keeps the IP block from triggering while still checking candidate passwords for the target user.
 
 ---
 
-### Step 2: Configure Burp Intruder Attack
-1. Send the `POST /login` request to **Burp Intruder**.
-2. Change the **Attack type** to **Pitchfork**.
-3. Set the payload positions on both the `username` and `password` parameters:
-   * `username=§wiener§`
-   * `password=§peter§`
+## Step 1: Initial reconnaissance and intercepting the login request
 
-![Configuring Pitchfork Attack and Payload Positions](Screenshot_2026-09-21_21-20-15.png)
+1. Open the lab in the browser and attempt a failed login.
+2. In Burp Suite, go to the Proxy tab and inspect the HTTP history.
+3. Find the `POST /login` request and send it to Burp Intruder.
 
----
-
-### Step 3: Configure Payload Lists
-Go to the **Payloads** side panel:
-
-* **Payload Position 1 (Username):**
-  * Set **Payload type** to **Simple list**.
-  * Add a list of usernames that alternates between your valid username (`wiener`) and the target username (`carlos`). Ensure `wiener` is first and `carlos` is repeated at least 100 times.
-
-* **Payload Position 2 (Password):**
-  * Set **Payload type** to **Simple list**.
-  * Add your valid password (`peter`) before each candidate password for `carlos`, matching the alternating structure of Position 1.
+<img src="Screenshot_2026-09-21_21-21-48.png" alt="Initial POST /login request in Burp Proxy" width="900" />
 
 ---
 
-### Step 4: Execute the Attack & Identify the Password
-1. Click **Start attack**.
-2. Once complete, filter or sort the results to identify successful responses.
-3. Locate the request for `carlos` returning a **302 Redirect** status code (or different response length), indicating a successful login attempt.
-4. Note the corresponding password from the **Payload 2** column.
+## Step 2: Configure the Burp Intruder attack
 
-![Intruder Attack Results](Screenshot_2026-09-21_21-23-52.png)
+1. Send the `POST /login` request to Burp Intruder.
+2. Change the attack type to `Pitchfork`.
+3. Set the payload positions so that:
+   - `username=§wiener§`
+   - `password=§peter§`
+
+<img src="Screenshot_2026-09-21_21-20-15.png" alt="Configuring Burp Intruder with Pitchfork and payload positions" width="900" />
 
 ---
 
-### Step 5: Log In and Solve the Lab
-1. Return to the lab login page in your browser.
-2. Enter the target username `carlos` along with the identified password.
+## Step 3: Configure the payload lists
 
-![Logging in as Carlos](Screenshot_2026-09-21_21-25-45.png)
+Go to the Payloads tab and configure both positions.
 
-3. Access Carlos's account page to successfully complete the lab.
+### Username payload list
+- Use a simple list.
+- Start with the valid account username, `wiener`.
+- Then alternate with the target username, `carlos`, repeated many times.
+- Ensure the valid user is sent first so the failed attempt counter resets without triggering the block.
 
-![Lab Solved](Screenshot_2026-09-21_21-24-27.png)
+### Password payload list
+- Use a simple list.
+- Place the correct password for `wiener` (`peter`) before each candidate password for `carlos`.
+- This pattern keeps the valid login sequence aligned with the target login attempts.
+
+---
+
+## Step 4: Run the attack and identify the password
+
+1. Click `Start attack`.
+2. Review the results and look for a response indicating a successful login for `carlos`.
+3. The successful request will usually return a `302` redirect or have a noticeably different response length.
+4. Note the password from the corresponding payload value.
+
+<img src="Screenshot_2026-09-21_21-23-52.png" alt="Burp Intruder attack results showing the valid password for carlos" width="900" />
+
+---
+
+## Step 5: Log in and solve the lab
+
+1. Return to the browser and log in as `carlos` using the recovered password.
+2. Access Carlos's account page.
+
+<img src="Screenshot_2026-09-21_21-25-45.png" alt="Logged in as Carlos in the target account" width="900" />
+
+3. The lab is solved once the account page loads successfully.
+
+<img src="Screenshot_2026-09-21_21-24-27.png" alt="Lab solved after logging in as Carlos" width="900" />
+
+---
+
+## Result
+
+By alternating a valid login with attempts against the target account, the failed-attempt counter resets before the IP block is triggered. This bypasses the brute-force protection and exposes the password for the target user.
